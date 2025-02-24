@@ -54,6 +54,18 @@ export default async function EditTeacherPage({
 			);
 		}
 
+		const sanitizedTeacher = {
+			...teacher,
+			name: teacher.name ?? undefined,
+			email: teacher.email ?? undefined,
+			phoneNumber: teacher.phoneNumber ?? undefined,
+			teacherProfile: teacher.teacherProfile ? {
+				...teacher.teacherProfile,
+				specialization: teacher.teacherProfile.specialization ?? undefined,
+				// Add other teacherProfile fields as needed
+			} : undefined
+		};
+
 		return (
 			<div className="container mx-auto py-6">
 				<Card>
@@ -63,7 +75,7 @@ export default async function EditTeacherPage({
 					<CardContent>
 						<TeacherForm 
 							teacherId={params.id}
-							initialData={teacher}
+							initialData={sanitizedTeacher}
 							subjects={subjects}
 							classes={classes}
 						/>
