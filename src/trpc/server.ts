@@ -11,10 +11,11 @@ export const api = createTRPCProxyClient<AppRouter>({
 		}),
 		unstable_httpBatchStreamLink({
 			url: `${process.env.NEXT_PUBLIC_APP_URL}/api/trpc`,
-			headers() {
-				const headersList = headers();
+			async headers() {
+				const headersList = await headers();
+				const entries = Array.from(headersList.entries());
 				return {
-					...Object.fromEntries(headersList.entries()),
+					...Object.fromEntries(entries),
 					"x-trpc-source": "rsc",
 				};
 			},

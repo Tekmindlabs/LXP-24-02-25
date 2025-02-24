@@ -43,7 +43,6 @@ export const classRouter = createTRPCRouter({
 						...(input.search && {
 							OR: [
 								{ name: { contains: input.search, mode: 'insensitive' } },
-								{ description: { contains: input.search, mode: 'insensitive' } },
 							],
 						}),
 						...(input.classGroupId && { classGroupId: input.classGroupId }),
@@ -52,7 +51,7 @@ export const classRouter = createTRPCRouter({
 								some: { teacherId: input.teacherId },
 							},
 						}),
-						...(input.campusId && { campusId: input.campusId }),
+						...(input.campusId && { campus: { id: input.campusId } }),
 					},
 					include: {
 						classGroup: {
@@ -96,71 +95,60 @@ export const classRouter = createTRPCRouter({
 	createClass: protectedProcedure
 		.input(classCreateSchema)
 		.mutation(async ({ ctx, input }) => {
-			// First get the teacher profiles
-			const teacherProfiles = await ctx.prisma.teacherProfile.findMany({
-				where: {
-					userId: {
-						in: [...(input.classTutorId ? [input.classTutorId] : []), ...(input.teacherIds || [])]
+			try {
+				const teacherProfiles = await ctx.prisma.teacherProfile.findMany({
+					where: {
+						userId: {
+							in: [...(input.teacherIds || []), input.classTutorId].filter(Boolean)
+						}
 					}
-				}
-			});
+				});
 
-			const data: Prisma.ClassCreateInput = {
-				name: input.name,
-				classGroup: { connect: { id: input.classGroupId } },
-				campusId: input.campusId,
-				...(input.buildingId && { building: { connect: { id: input.buildingId } } }),
-				...(input.roomId && { room: { connect: { id: input.roomId } } }),
-				capacity: input.capacity,
-				status: input.status,
-				teachers: {
-					createMany: {
-						data: teacherProfiles.map(profile => ({
-							teacherId: profile.id,
-							isClassTeacher: profile.userId === input.classTutorId,
-							status: Status.ACTIVE,
-						}))
-					}
-				},
-			};
-
-			return ctx.prisma.class.create({
-				data,
-
-				include: {
-					classGroup: {
-						include: {
-							program: {
-								include: {
-									assessmentSystem: true,
-									termStructures: true,
-								},
-							},
-						},
-					},
+				const data: Prisma.ClassCreateInput = {
+					name: input.name,
+					classGroup: { connect: { id: input.classGroupId } },
+					campus: { connect: { id: input.campusId } },
+					...(input.buildingId && { building: { connect: { id: input.buildingId } } }),
+					...(input.roomId && { room: { connect: { id: input.roomId } } }),
+					capacity: input.capacity,
+					status: input.status,
+					description: input.description,
 					teachers: {
-						include: {
-							teacher: {
-								include: {
-									user: true,
-								},
-							},
-						},
-					},
-					students: {
-						include: {
-							user: true,
-						},
-					},
+						createMany: {
+							data: teacherProfiles.map(profile => ({
+								teacherId: profile.id,
+								isClassTeacher: profile.userId === input.classTutorId,
+								status: Status.ACTIVE,
+							}))
+						}
+					}
+				};
 
-					gradeBook: {
-						include: {
-							assessmentSystem: true,
-						},
-					},
-				},
-
-			});
+				return ctx.prisma.class.create({
+					data,
+					include: {
+						classGroup: true,
+						campus: true,
+						building: true,
+						room: true,
+						teachers: {
+							include: {
+								teacher: {
+									include: {
+										user: true
+									}
+								}
+							}
+						}
+					}
+				});
+			} catch (error) {
+				throw new TRPCError({
+					code: 'INTERNAL_SERVER_ERROR',
+					message: 'Failed to create class',
+					cause: error,
+				});
+			}
 		}),
 
 
@@ -170,81 +158,46 @@ export const classRouter = createTRPCRouter({
 	updateClass: protectedProcedure
 		.input(z.object({
 			id: z.string(),
-			name: z.string().optional(),
-			classGroupId: z.string(), // Required field
-			campusId: z.string().optional(),
-			buildingId: z.string().optional(),
-			roomId: z.string().optional(),
-			capacity: z.number().optional(),
-			status: z.enum([Status.ACTIVE, Status.INACTIVE, Status.ARCHIVED]).optional(),
-			description: z.string().optional(),
-			academicYear: z.string().optional(),
-			semester: z.string().optional(),
-			classTutorId: z.string().optional(),
-			teacherIds: z.array(z.string()).optional(),
+			data: classCreateSchema
 		}))
-		.mutation(async ({ ctx, input }) => {
-			const { id, teacherIds, classTutorId, campusId, buildingId, roomId, ...data } = input;
-
-			if (teacherIds) {
-				await ctx.prisma.teacherClass.deleteMany({
-					where: { classId: id },
+		.mutation(async ({ ctx, input: { id, data } }) => {
+			try {
+				const { campusId, buildingId, roomId, ...restData } = data;
+				
+				return ctx.prisma.class.update({
+					where: { id },
+					data: {
+						...restData,
+						classGroup: { connect: { id: data.classGroupId } },
+						...(campusId && { campus: { connect: { id: campusId } } }),
+						...(buildingId && { building: { connect: { id: buildingId } } }),
+						...(roomId && { room: { connect: { id: roomId } } }),
+					},
+					include: {
+						classGroup: true,
+						campus: true,
+						building: true,
+						room: true,
+						teachers: {
+							include: {
+								teacher: {
+									include: {
+										user: true
+									}
+								}
+							}
+						}
+					}
 				});
-
-				if (teacherIds.length > 0) {
-					await ctx.prisma.teacherClass.createMany({
-						data: teacherIds.map(teacherId => ({
-							classId: id,
-							teacherId,
-							isClassTeacher: teacherId === classTutorId,
-							status: Status.ACTIVE,
-						})),
-					});
-				}
+			} catch (error) {
+				throw new TRPCError({
+					code: 'INTERNAL_SERVER_ERROR',
+					message: 'Failed to update class',
+					cause: error,
+				});
 			}
-
-			return ctx.prisma.class.update({
-				where: { id },
-				data: {
-					...data,
-					...(campusId && { campus: { connect: { id: campusId } } }),
-					...(buildingId && { building: { connect: { id: buildingId } } }),
-					...(roomId && { room: { connect: { id: roomId } } }),
-				},
-				include: {
-					classGroup: {
-						include: {
-							program: {
-								include: {
-									assessmentSystem: true,
-									termStructures: true,
-								},
-							},
-						},
-					},
-					teachers: {
-						include: {
-							teacher: {
-								include: {
-									user: true,
-								},
-							},
-						},
-					},
-					students: {
-						include: {
-							user: true,
-						},
-					},
-					gradeBook: {
-						include: {
-							assessmentSystem: true,
-						},
-					},
-				},
-			});
-
 		}),
+
 
 	deleteClass: protectedProcedure
 		.input(z.string())
@@ -350,89 +303,36 @@ export const classRouter = createTRPCRouter({
 
 	list: protectedProcedure
 		.query(async ({ ctx }) => {
-			console.log('List Classes - Session:', ctx.session);
-			
-			// Check user roles and permissions
-			const userRoles = ctx.session?.user?.roles || [];
-			const hasAccess = userRoles.some(role => 
-				[DefaultRoles.ADMIN, DefaultRoles.SUPER_ADMIN, DefaultRoles.TEACHER].includes(role as DefaultRoles)
-			);
-
-			if (!hasAccess) {
+			if (!ctx.session) {
 				throw new TRPCError({
 					code: 'UNAUTHORIZED',
-					message: 'You do not have permission to access class list'
+					message: 'You must be logged in to access this resource'
 				});
 			}
 
 			try {
-				// For teachers, only return their assigned classes
-				if (userRoles.includes(DefaultRoles.TEACHER) && !userRoles.some(role => 
-					[DefaultRoles.ADMIN, DefaultRoles.SUPER_ADMIN].includes(role as DefaultRoles)
-				)) {
-					return ctx.prisma.class.findMany({
-						where: {
-							teachers: {
-								some: {
-									teacher: {
-										userId: ctx.session.user.id
-									}
-								}
-							}
-						},
-						include: {
-							classGroup: true,
-							students: true,
-							teachers: {
-								include: {
-									teacher: true,
-								},
-							},
-							timetables: {
-								include: {
-									periods: {
-										include: {
-											subject: true,
-											classroom: true,
-										},
-									},
-								},
-							},
-							classActivities: true,
-							unifiedActivities: true,
-						},
-					});
-				}
-
-				// For admin and super_admin, return all classes
+				console.log('List Classes - Session:', ctx.session);
 				return ctx.prisma.class.findMany({
 					include: {
 						classGroup: true,
-						students: true,
+						campus: true,
+						building: true,
+						room: true,
 						teachers: {
 							include: {
-								teacher: true,
-							},
-						},
-						timetables: {
-							include: {
-								periods: {
+								teacher: {
 									include: {
-										subject: true,
-										classroom: true,
-									},
-								},
-							},
-						},
-						classActivities: true,
-						unifiedActivities: true,
-					},
+										user: true
+									}
+								}
+							}
+						}
+					}
 				});
 			} catch (error) {
-				console.error('Error fetching classes:', error);
 				throw new TRPCError({
 					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to fetch classes',
+					message: 'Failed to list classes',
 					cause: error,
 				});
 			}

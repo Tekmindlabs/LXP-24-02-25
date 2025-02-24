@@ -1,8 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import TeacherForm from "@/components/dashboard/roles/super-admin/teacher/TeacherForm";
-import { api } from "@/trpc/server"; // Use server-side TRPC client
-import { TeacherProfile } from "@/types/teacher";
-import { Status } from "@/types/enums";
+import { api } from "@/trpc/server";
+import { Status, TeacherType } from "@prisma/client";
 
 interface Teacher {
   id: string;
@@ -10,91 +9,113 @@ interface Teacher {
   email: string | null;
   phoneNumber: string | null;
   status: Status;
-  teacherProfile?: TeacherProfile | null; // Make teacherProfile optional
+  teacherProfile?: {
+    id: string;
+    teacherType: TeacherType;
+    specialization: string | null;
+    subjectIds: string[];
+    classIds: string[];
+    campusIds: string[];
+  } | null;
+}
+
+interface Subject {
+  id: string;
+  name: string;
+  status: Status;
+}
+
+interface Class {
+  id: string;
+  name: string;
+  status: Status;
 }
 
 export default async function EditTeacherPage({
-	params
+  params
 }: {
-	params: { id: string; role: string }
+  params: { id: string; role: string }
 }) {
-	if (!params.id) {
-		return (
-			<div className="container mx-auto py-6">
-				<Card>
-					<CardContent>
-						<div className="text-center text-red-500">Invalid teacher ID</div>
-					</CardContent>
-				</Card>
-			</div>
-		);
-	}
+  const teacherId = params.id;
+  
+  if (!teacherId) {
+    return (
+      <div className="container mx-auto py-6">
+        <Card>
+          <CardContent>
+            <div className="text-center text-red-500">Invalid teacher ID</div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-	try {
-		// Fetch initial data server-side
-		const [teacher, subjects, classes] = await Promise.all([
-			api.teacher.getById.query(params.id), // params.id is already a string
-			api.subject.searchSubjects.query({ 
-				status: Status.ACTIVE // Add default search criteria
-			}),
-			api.class.searchClasses.query({ 
-				status: Status.ACTIVE // Add default search criteria
-			})
-		]);
-			
-		if (!teacher) {
-			return (
-				<div className="container mx-auto py-6">
-					<Card>
-						<CardContent>
-							<div className="text-center text-red-500">Teacher not found</div>
-						</CardContent>
-					</Card>
-				</div>
-			);
-		}
+  try {
+    const [teacher, subjects, classes] = await Promise.all([
+      api.teacher.getById.query(teacherId) as Promise<Teacher>,
+      api.subject.searchSubjects.query({ 
+        status: Status.ACTIVE 
+      }) as Promise<Subject[]>,
+      api.class.searchClasses.query({ 
+        status: Status.ACTIVE 
+      }) as Promise<Class[]>
+    ]).catch((error) => {
+      console.error("Error loading data:", error);
+      throw error;
+    });
+      
+    if (!teacher) {
+      return (
+        <div className="container mx-auto py-6">
+          <Card>
+            <CardContent>
+              <div className="text-center text-red-500">Teacher not found</div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
 
-		const sanitizedTeacher = {
-			...teacher,
-			name: teacher.name ?? undefined,
-			email: teacher.email ?? undefined,
-			phoneNumber: teacher.phoneNumber ?? undefined,
-			teacherProfile: teacher.teacherProfile ? {
-				...teacher.teacherProfile,
-				specialization: teacher.teacherProfile.specialization ?? undefined,
-				// Add other teacherProfile fields as needed
-			} : undefined
-		};
+    const sanitizedTeacher = {
+      name: teacher.name || "",
+      email: teacher.email || "",
+      phoneNumber: teacher.phoneNumber || "",
+      teacherType: teacher.teacherProfile?.teacherType || TeacherType.CLASS,
+      specialization: teacher.teacherProfile?.specialization || "",
+      campusIds: teacher.teacherProfile?.campusIds || [],
+      subjectIds: teacher.teacherProfile?.subjectIds || [],
+      classIds: teacher.teacherProfile?.classIds || []
+    };
 
-		return (
-			<div className="container mx-auto py-6">
-				<Card>
-					<CardHeader className="flex flex-row items-center justify-between">
-						<CardTitle>Edit Teacher</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<TeacherForm 
-							teacherId={params.id}
-							initialData={sanitizedTeacher}
-							subjects={subjects}
-							classes={classes}
-						/>
-					</CardContent>
-				</Card>
-			</div>
-		);
-	} catch (error) {
-		console.error('Error loading teacher:', error);
-		return (
-			<div className="container mx-auto py-6">
-				<Card>
-					<CardContent>
-						<div className="text-center text-red-500">
-							Error loading teacher data: {error instanceof Error ? error.message : 'Unknown error'}
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-		);
-	}
+    return (
+      <div className="container mx-auto py-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Edit Teacher</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TeacherForm 
+              teacherId={params.id}
+              initialData={sanitizedTeacher}
+              subjects={subjects}
+              classes={classes}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  } catch (error) {
+    console.error('Error loading teacher:', error);
+    return (
+      <div className="container mx-auto py-6">
+        <Card>
+          <CardContent>
+            <div className="text-center text-red-500">
+              Error loading teacher data: {error instanceof Error ? error.message : 'Unknown error'}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 }

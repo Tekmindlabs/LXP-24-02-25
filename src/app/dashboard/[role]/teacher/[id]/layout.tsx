@@ -9,11 +9,8 @@ interface PageProps {
 	children: React.ReactNode;
 }
 
-export default function TeacherProfileLayout({ params, children }: PageProps) {
-	const { role } = params;
-
-
-
+export default async function TeacherProfileLayout({ params, children }: PageProps) {
+	const role = params.role;
 
 	return (
 		<div className="space-y-6">
