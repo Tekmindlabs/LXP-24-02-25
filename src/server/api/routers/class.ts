@@ -32,64 +32,64 @@ export const classRouter = createTRPCRouter({
 			classGroupId: z.string().optional(),
 			search: z.string().optional(),
 			teacherId: z.string().optional(),
-			status: z.enum([Status.ACTIVE, Status.INACTIVE, Status.ARCHIVED]).optional(),
+			status: z.nativeEnum(Status).optional(),
 			campusId: z.string().optional(),
 		}))
 		.query(async ({ ctx, input }) => {
-			const { search, classGroupId, teacherId, status, campusId } = input;
-			return ctx.prisma.class.findMany({
-				where: {
-					...(search && {
-						OR: [
-							{ name: { contains: search, mode: 'insensitive' } },
-						],
-					}),
-					...(classGroupId && { classGroupId }),
-					...(teacherId && {
+			try {
+				const classes = await ctx.prisma.class.findMany({
+					where: {
+						status: input.status || Status.ACTIVE,
+						...(input.search && {
+							OR: [
+								{ name: { contains: input.search, mode: 'insensitive' } },
+								{ description: { contains: input.search, mode: 'insensitive' } },
+							],
+						}),
+						...(input.classGroupId && { classGroupId: input.classGroupId }),
+						...(input.teacherId && {
+							teachers: {
+								some: { teacherId: input.teacherId },
+							},
+						}),
+						...(input.campusId && { campusId: input.campusId }),
+					},
+					include: {
+						classGroup: {
+							include: {
+								program: true,
+							},
+						},
+						campus: true,
+						building: true,
+						room: true,
 						teachers: {
-							some: { teacherId },
-						},
-					}),
-					...(status && { status }),
-					...(campusId && { campusId }),
-				},
-				include: {
-					classGroup: {
-						include: {
-							program: {
-								include: {
-									assessmentSystem: true,
-									termStructures: true,
+							include: {
+								teacher: {
+									include: {
+										user: true,
+									},
 								},
 							},
 						},
-					},
-					teachers: {
-						include: {
-							teacher: {
-								include: {
-									user: true,
-								},
+						students: {
+							include: {
+								user: true,
 							},
 						},
 					},
-					students: {
-						include: {
-							user: true,
-						},
+					orderBy: {
+						name: 'asc',
 					},
-
-					gradeBook: {
-						include: {
-							assessmentSystem: true,
-						},
-					},
-				},
-
-				orderBy: {
-					name: 'asc',
-				},
-			});
+				});
+				return classes;
+			} catch (error) {
+				throw new TRPCError({
+					code: 'INTERNAL_SERVER_ERROR',
+					message: 'Failed to fetch classes',
+					cause: error,
+				});
+			}
 		}),
 
 

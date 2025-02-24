@@ -81,6 +81,7 @@ export default function TeacherForm({
 }: TeacherFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Get campuses data
   const { data: campuses = [], isLoading: isLoadingCampuses } = api.campus.getAll.useQuery();
@@ -88,7 +89,33 @@ export default function TeacherForm({
   // Get teacher data if editing
   const { data: teacherData, isLoading: isLoadingTeacher } = api.teacher.getTeacher.useQuery(
     { id: teacherId! },
-    { enabled: !!teacherId }
+    { 
+      enabled: !!teacherId,
+      retry: false,
+      onError: (error) => {
+        toast.error(`Error loading teacher: ${error.message}`);
+      }
+    }
+  );
+
+  // Get subjects data
+  const { data: subjectsData = [], isLoading: isLoadingSubjects } = api.subject.searchSubjects.useQuery(
+    { status: Status.ACTIVE },
+    {
+      onError: (error) => {
+        toast.error(`Error loading subjects: ${error.message}`);
+      }
+    }
+  );
+
+  // Get classes data
+  const { data: classesData = [], isLoading: isLoadingClasses } = api.class.searchClasses.useQuery(
+    { status: Status.ACTIVE },
+    {
+      onError: (error) => {
+        toast.error(`Error loading classes: ${error.message}`);
+      }
+    }
   );
 
   // Create teacher mutation
@@ -183,8 +210,12 @@ export default function TeacherForm({
   };
 
   // Show loading state while fetching teacher data
-  if (teacherId && isLoadingTeacher) {
-    return <div>Loading teacher data...</div>;
+  if (isLoadingTeacher || isLoadingSubjects || isLoadingClasses) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
   }
 
   // Show error if teacher data failed to load
@@ -310,7 +341,7 @@ export default function TeacherForm({
                     <MultiSelect<string>
                       value={field.value ?? []}
                       options={
-                        subjects?.map((subject: Subject) => ({
+                        subjectsData?.map((subject: Subject) => ({
                           label: subject.name,
                           value: subject.id,
                         })) ?? []
@@ -336,7 +367,7 @@ export default function TeacherForm({
                     <MultiSelect<string>
                       value={field.value ?? []}
                       options={
-                        classes?.map((class_: Class) => ({
+                        classesData?.map((class_: Class) => ({
                           label: class_.name,
                           value: class_.id,
                         })) ?? []

@@ -237,37 +237,39 @@ export const teacherRouter = createTRPCRouter({
 	getById: protectedProcedure
 		.input(z.string())
 		.query(async ({ ctx, input }) => {
-			const teacher = await ctx.prisma.user.findFirst({
-				where: { 
-					id: input,
-					userType: UserType.TEACHER 
-				},
-				include: {
-					teacherProfile: {
-						include: {
-							subjects: {
-								include: {
-									subject: true
-								}
-							},
-							classes: {
-								include: {
-									class: {
-										include: {
-											classGroup: true,
-											students: true,
-											teachers: {
-												include: {
-													teacher: true
-												}
-											},
-											timetables: {
-												include: {
-													periods: {
-														include: {
-															subject: true,
-															classroom: true,
-															teacher: true
+			try {
+				const teacher = await ctx.prisma.user.findFirst({
+					where: { 
+						id: input,
+						userType: UserType.TEACHER 
+					},
+					include: {
+						teacherProfile: {
+							include: {
+								subjects: {
+									include: {
+										subject: true
+									}
+								},
+								classes: {
+									include: {
+										class: {
+											include: {
+												classGroup: true,
+												students: true,
+												teachers: {
+													include: {
+														teacher: true
+													}
+												},
+												timetables: {
+													include: {
+														periods: {
+															include: {
+																subject: true,
+																classroom: true,
+																teacher: true
+															}
 														}
 													}
 												}
@@ -278,14 +280,23 @@ export const teacherRouter = createTRPCRouter({
 							}
 						}
 					}
+				});
+
+				if (!teacher) {
+					throw new TRPCError({
+						code: 'NOT_FOUND',
+						message: 'Teacher not found',
+					});
 				}
-			});
 
-			if (!teacher) {
-				throw new Error("Teacher not found");
+				return teacher;
+			} catch (error) {
+				throw new TRPCError({
+					code: 'INTERNAL_SERVER_ERROR',
+					message: 'Failed to fetch teacher',
+					cause: error,
+				});
 			}
-
-			return teacher;
 		}),
 
 	getTeacherClasses: protectedProcedure

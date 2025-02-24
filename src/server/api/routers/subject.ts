@@ -223,54 +223,58 @@ export const subjectRouter = createTRPCRouter({
 			classGroupIds: z.array(z.string()).optional(),
 			teacherIds: z.array(z.string()).optional(),
 			search: z.string().optional(),
-			status: z.enum([Status.ACTIVE, Status.INACTIVE, Status.ARCHIVED]).optional(),
+			status: z.nativeEnum(Status).optional(),
 		}))
 		.query(async ({ ctx, input }) => {
-			const { search, classGroupIds, teacherIds, status } = input;
-
-
-			return ctx.prisma.subject.findMany({
-				where: {
-					...(search && {
-						OR: [
-							{ name: { contains: search, mode: 'insensitive' } },
-							{ code: { contains: search, mode: 'insensitive' } },
-							{ description: { contains: search, mode: 'insensitive' } },
-						],
-					}),
-					...(classGroupIds && classGroupIds.length > 0 && {
-						classGroups: {
-							some: { id: { in: classGroupIds } },
-						},
-					}),
-					...(status && { status }),
-					...(teacherIds && teacherIds.length > 0 && {
-						teachers: {
-							some: { teacherId: { in: teacherIds } },
-						},
-					}),
-
-				},
-				include: {
-					classGroups: {
-						include: {
-							program: true,
-						},
+			try {
+				const subjects = await ctx.prisma.subject.findMany({
+					where: {
+						status: input.status || Status.ACTIVE,
+						...(input.search && {
+							OR: [
+								{ name: { contains: input.search, mode: 'insensitive' } },
+								{ description: { contains: input.search, mode: 'insensitive' } },
+							],
+						}),
+						...(input.classGroupIds?.length && {
+							classGroups: {
+								some: {
+									id: { in: input.classGroupIds },
+								},
+							},
+						}),
+						...(input.teacherIds?.length && {
+							teachers: {
+								some: {
+									teacherId: { in: input.teacherIds },
+								},
+							},
+						}),
 					},
-					teachers: {
-						include: {
-							teacher: {
-								include: {
-									user: true,
+					include: {
+						classGroups: true,
+						teachers: {
+							include: {
+								teacher: {
+									include: {
+										user: true,
+									},
 								},
 							},
 						},
 					},
-				},
-				orderBy: {
-					name: 'asc',
-				},
-			});
+					orderBy: {
+						name: 'asc',
+					},
+				});
+				return subjects;
+			} catch (error) {
+				throw new TRPCError({
+					code: 'INTERNAL_SERVER_ERROR',
+					message: 'Failed to fetch subjects',
+					cause: error,
+				});
+			}
 		}),
 
 	getAvailableTeachers: protectedProcedure

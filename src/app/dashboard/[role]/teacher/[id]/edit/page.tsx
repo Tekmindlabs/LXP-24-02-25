@@ -33,9 +33,13 @@ export default async function EditTeacherPage({
 	try {
 		// Fetch initial data server-side
 		const [teacher, subjects, classes] = await Promise.all([
-			api.teacher.getById.query(String(params.id)) as Promise<Partial<Teacher>>,
-			api.subject.searchSubjects.query({}),
-			api.class.searchClasses.query({})
+			api.teacher.getById.query(params.id), // params.id is already a string
+			api.subject.searchSubjects.query({ 
+				status: Status.ACTIVE // Add default search criteria
+			}),
+			api.class.searchClasses.query({ 
+				status: Status.ACTIVE // Add default search criteria
+			})
 		]);
 			
 		if (!teacher) {
@@ -50,21 +54,6 @@ export default async function EditTeacherPage({
 			);
 		}
 
-		const formattedTeacher = {
-			id: teacher.id,
-			name: teacher.name || '',
-			email: teacher.email || '',
-			phoneNumber: teacher.phoneNumber || '',
-			status: teacher.status,
-			teacherProfile: teacher.teacherProfile ? {
-				teacherType: teacher.teacherProfile.teacherType ?? null,
-				specialization: teacher.teacherProfile.specialization || '',
-				availability: teacher.teacherProfile.availability || '',
-				subjects: teacher.teacherProfile.subjects || [],
-				classes: teacher.teacherProfile.classes || [],
-			} : null
-		};
-
 		return (
 			<div className="container mx-auto py-6">
 				<Card>
@@ -72,11 +61,11 @@ export default async function EditTeacherPage({
 						<CardTitle>Edit Teacher</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<TeacherForm
-							initialData={formattedTeacher}
-							teacherId={teacher.id}
-							subjects={subjects || []}
-							classes={classes || []}
+						<TeacherForm 
+							teacherId={params.id}
+							initialData={teacher}
+							subjects={subjects}
+							classes={classes}
 						/>
 					</CardContent>
 				</Card>
@@ -89,7 +78,7 @@ export default async function EditTeacherPage({
 				<Card>
 					<CardContent>
 						<div className="text-center text-red-500">
-							Error loading teacher data. Please try again later.
+							Error loading teacher data: {error instanceof Error ? error.message : 'Unknown error'}
 						</div>
 					</CardContent>
 				</Card>
