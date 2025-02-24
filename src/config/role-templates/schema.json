@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique identifier for the role template"
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable name for the template"
+    },
+    "description": {
+      "type": "string",
+      "description": "Template description displayed to users"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of permission keys granted to this role"
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "isDefault": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this template should be used as a default option"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["global", "campus", "program"],
+          "description": "The scope of the role template"
+        },
+        "customizationOptions": {
+          "type": "object",
+          "properties": {
+            "allowPermissionModification": {
+              "type": "boolean",
+              "default": true
+            },
+            "allowScopeModification": {
+              "type": "boolean",
+              "default": true
+            },
+            "requiredPermissions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "required": ["scope"]
+    }
+  },
+  "required": ["name", "displayName", "permissions", "settings"]
+}

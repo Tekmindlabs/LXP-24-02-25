@@ -1,0 +1,23 @@
+{
+  "name": "base-instructor",
+  "displayName": "Base Instructor",
+  "description": "Template for instructor roles with basic permissions",
+  "permissions": [
+    "view-classes",
+    "manage-assignments",
+    "grade-students",
+    "view-students"
+  ],
+  "settings": {
+    "isDefault": true,
+    "scope": "campus",
+    "customizationOptions": {
+      "allowPermissionModification": true,
+      "allowScopeModification": false,
+      "requiredPermissions": [
+        "view-classes",
+        "view-students"
+      ]
+    }
+  }
+}

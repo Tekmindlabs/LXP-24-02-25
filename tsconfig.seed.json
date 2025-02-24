@@ -1,0 +1,18 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+      "module": "CommonJS",
+      "outDir": "dist",
+      "typeRoots": ["./node_modules/@types", "./types"],
+      "baseUrl": ".",
+      "paths": {
+        "@/*": ["src/*"]
+      }
+    },
+    "include": [
+      "prisma/**/*.ts",
+      "types/**/*.ts",
+      "src/**/*.ts",
+      "src/**/*.d.ts"
+    ]
+  }
